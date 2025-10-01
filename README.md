@@ -2,6 +2,20 @@
 
 AI-powered Git commit message generator using OpenAI API for VS Code.
 
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/bablilayoub.auto-git-message)](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)
+[![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/bablilayoub.auto-git-message)](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)
+[![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/bablilayoub.auto-git-message)](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)
+
+## 🚀 Quick Install
+
+**[📥 Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)**
+
+Or install directly in VS Code:
+1. Open VS Code
+2. Press `Ctrl+P` (Windows/Linux) or `Cmd+P` (macOS)  
+3. Type: `ext install bablilayoub.auto-git-message`
+4. Press Enter
+
 ## Features
 
 - **AI-Generated Commit Messages**: Generate multiple commit message suggestions based on your staged Git changes
@@ -21,8 +35,26 @@ AI-powered Git commit message generator using OpenAI API for VS Code.
 
 ## Installation
 
-1. Install the extension from VS Code Marketplace (or package the extension locally)
-2. Set your OpenAI API key using the command `AI: Set OpenAI API Key`
+**[📥 Download from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)**
+
+### Method 1: VS Code Marketplace (Recommended)
+1. Click the download button above
+2. Click "Install" on the marketplace page
+3. VS Code will open and install the extension automatically
+
+### Method 2: VS Code Extensions Panel
+1. Open VS Code
+2. Click the Extensions icon in the Activity Bar (or press `Ctrl+Shift+X`)
+3. Search for "Auto Git Message"
+4. Click "Install" on the extension by bablilayoub
+
+### Method 3: Command Line
+```bash
+code --install-extension bablilayoub.auto-git-message
+```
+
+### Setup
+After installation, set your OpenAI API key using the command `AI: Set OpenAI API Key`
 
 ## Usage
 
@@ -220,32 +252,6 @@ MIT License - see LICENSE file for details
 - Secure API key storage
 - Source Control integration
 - Configurable AI settings
-This is the README for your extension "y". After writing up a brief description, we recommend including the following sections.
-
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
 
 ## Known Issues
 

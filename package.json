@@ -3,7 +3,8 @@
   "displayName": "Auto Git Message",
   "description": "AI-powered Git commit message generator using OpenAI API",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "license": "MIT",
+  "publisher": "bablilayoub",
   "engines": {
     "vscode": "^1.104.0"
   },
@@ -11,6 +12,24 @@
     "SCM Providers",
     "Other"
   ],
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "openai", 
+    "artificial intelligence",
+    "conventional commits",
+    "automation",
+    "productivity"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bablilayoub/auto-git-message.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bablilayoub/auto-git-message/issues"
+  },
+  "homepage": "https://github.com/bablilayoub/auto-git-message#readme",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
