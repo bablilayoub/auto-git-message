@@ -10,7 +10,29 @@ const execAsync = promisify(exec);
 // Constants
 // Extension constants
 const API_KEY_SECRET_PREFIX = 'commitAi.apiKey.';
+const COMMIT_HISTORY_KEY = 'commitAi.commitHistory';
+const COMMIT_FAVORITES_KEY = 'commitAi.commitFavorites';
+const MAX_HISTORY_ITEMS = 20;
 const EXTENSION_NAME = 'Auto Git Message';
+
+// Types
+interface CommitMessageItem {
+    message: string;
+    timestamp: number;
+    provider: string;
+    model: string;
+}
+
+interface ChangeContext {
+    fileTypes: string[];
+    frameworks: string[];
+    changeTypes: string[];
+    hasTests: boolean;
+    hasConfig: boolean;
+    hasDocs: boolean;
+    language: string;
+    scope: string;
+}
 
 /**
  * Tree Data Provider for the Activity Bar view
@@ -75,6 +97,21 @@ export function activate(context: vscode.ExtensionContext) {
         await generateCommitMessage(context);
     });
 
+    // Register command to show commit history
+    const showCommitHistoryCommand = vscode.commands.registerCommand('commitAi.showCommitHistory', async () => {
+        await showCommitHistory(context);
+    });
+
+    // Register command to show favorite commits
+    const showFavoriteCommitsCommand = vscode.commands.registerCommand('commitAi.showFavoriteCommits', async () => {
+        await showFavoriteCommits(context);
+    });
+
+    // Register command to manage favorites
+    const manageFavoritesCommand = vscode.commands.registerCommand('commitAi.manageFavorites', async () => {
+        await manageFavorites(context);
+    });
+
     // Add commands to extension context subscriptions
     context.subscriptions.push(
         setApiKeyCommand, 
@@ -82,7 +119,10 @@ export function activate(context: vscode.ExtensionContext) {
         selectModelCommand,
         selectProfessionalismCommand,
         selectProviderCommand,
-        generateCommitMessageCommand
+        generateCommitMessageCommand,
+        showCommitHistoryCommand,
+        showFavoriteCommitsCommand,
+        manageFavoritesCommand
     );
 }
 
@@ -117,6 +157,423 @@ async function updateApiKeyContext(context: vscode.ExtensionContext): Promise<vo
     } catch (error) {
         await vscode.commands.executeCommand('setContext', 'commitAi.apiKeyConfigured', false);
     }
+}
+
+/**
+ * Get commit message history from storage
+ */
+async function getCommitHistory(context: vscode.ExtensionContext): Promise<CommitMessageItem[]> {
+    const history = context.globalState.get<CommitMessageItem[]>(COMMIT_HISTORY_KEY, []);
+    return history.sort((a, b) => b.timestamp - a.timestamp); // Most recent first
+}
+
+/**
+ * Add a commit message to history
+ */
+async function addToCommitHistory(context: vscode.ExtensionContext, message: string, provider: string, model: string): Promise<void> {
+    const history = await getCommitHistory(context);
+    
+    // Don't add duplicates
+    if (history.some(item => item.message === message)) {
+        return;
+    }
+    
+    const newItem: CommitMessageItem = {
+        message,
+        timestamp: Date.now(),
+        provider,
+        model
+    };
+    
+    history.unshift(newItem);
+    
+    // Keep only the most recent items
+    if (history.length > MAX_HISTORY_ITEMS) {
+        history.splice(MAX_HISTORY_ITEMS);
+    }
+    
+    await context.globalState.update(COMMIT_HISTORY_KEY, history);
+}
+
+/**
+ * Get favorite commit messages from storage
+ */
+async function getFavoriteCommits(context: vscode.ExtensionContext): Promise<CommitMessageItem[]> {
+    const favorites = context.globalState.get<CommitMessageItem[]>(COMMIT_FAVORITES_KEY, []);
+    return favorites.sort((a, b) => b.timestamp - a.timestamp); // Most recent first
+}
+
+/**
+ * Add a commit message to favorites
+ */
+async function addToFavorites(context: vscode.ExtensionContext, message: string, provider: string, model: string): Promise<void> {
+    const favorites = await getFavoriteCommits(context);
+    
+    // Don't add duplicates
+    if (favorites.some(item => item.message === message)) {
+        vscode.window.showInformationMessage('This message is already in your favorites!');
+        return;
+    }
+    
+    const newItem: CommitMessageItem = {
+        message,
+        timestamp: Date.now(),
+        provider,
+        model
+    };
+    
+    favorites.unshift(newItem);
+    await context.globalState.update(COMMIT_FAVORITES_KEY, favorites);
+    vscode.window.showInformationMessage('Commit message added to favorites!');
+}
+
+/**
+ * Remove a commit message from favorites
+ */
+async function removeFromFavorites(context: vscode.ExtensionContext, message: string): Promise<void> {
+    const favorites = await getFavoriteCommits(context);
+    const filtered = favorites.filter(item => item.message !== message);
+    await context.globalState.update(COMMIT_FAVORITES_KEY, filtered);
+    vscode.window.showInformationMessage('Commit message removed from favorites!');
+}
+
+/**
+ * Show commit message history
+ */
+async function showCommitHistory(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        const history = await getCommitHistory(context);
+        
+        if (history.length === 0) {
+            vscode.window.showInformationMessage('No commit message history found. Generate some commit messages first!');
+            return;
+        }
+        
+        const historyItems = history.map(item => ({
+            label: `$(history) ${item.message}`,
+            description: `${item.provider} (${item.model})`,
+            detail: `${new Date(item.timestamp).toLocaleString()}`,
+            item
+        }));
+        
+        const selected = await vscode.window.showQuickPick(historyItems, {
+            placeHolder: 'Select a commit message from history',
+            title: 'Commit Message History',
+            matchOnDescription: true,
+            matchOnDetail: true
+        });
+        
+        if (selected) {
+            const action = await vscode.window.showQuickPick([
+                { label: '$(git-commit) Use this message', action: 'use' },
+                { label: '$(star) Add to favorites', action: 'favorite' },
+                { label: '$(copy) Copy to clipboard', action: 'copy' }
+            ], {
+                placeHolder: 'What would you like to do with this message?'
+            });
+            
+            if (action?.action === 'use') {
+                await insertCommitMessage(selected.item.message);
+            } else if (action?.action === 'favorite') {
+                await addToFavorites(context, selected.item.message, selected.item.provider, selected.item.model);
+            } else if (action?.action === 'copy') {
+                await vscode.env.clipboard.writeText(selected.item.message);
+                vscode.window.showInformationMessage('Commit message copied to clipboard!');
+            }
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to show commit history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Show favorite commit messages
+ */
+async function showFavoriteCommits(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        const favorites = await getFavoriteCommits(context);
+        
+        if (favorites.length === 0) {
+            vscode.window.showInformationMessage('No favorite commit messages found. Add some messages to favorites first!');
+            return;
+        }
+        
+        const favoriteItems = favorites.map(item => ({
+            label: `$(star) ${item.message}`,
+            description: `${item.provider} (${item.model})`,
+            detail: `Added ${new Date(item.timestamp).toLocaleString()}`,
+            item
+        }));
+        
+        const selected = await vscode.window.showQuickPick(favoriteItems, {
+            placeHolder: 'Select a favorite commit message',
+            title: 'Favorite Commit Messages',
+            matchOnDescription: true,
+            matchOnDetail: true
+        });
+        
+        if (selected) {
+            const action = await vscode.window.showQuickPick([
+                { label: '$(git-commit) Use this message', action: 'use' },
+                { label: '$(copy) Copy to clipboard', action: 'copy' },
+                { label: '$(trash) Remove from favorites', action: 'remove' }
+            ], {
+                placeHolder: 'What would you like to do with this message?'
+            });
+            
+            if (action?.action === 'use') {
+                await insertCommitMessage(selected.item.message);
+            } else if (action?.action === 'copy') {
+                await vscode.env.clipboard.writeText(selected.item.message);
+                vscode.window.showInformationMessage('Commit message copied to clipboard!');
+            } else if (action?.action === 'remove') {
+                await removeFromFavorites(context, selected.item.message);
+            }
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to show favorite commits: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Manage favorites - bulk operations
+ */
+async function manageFavorites(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        const action = await vscode.window.showQuickPick([
+            { 
+                label: '$(star) Show Favorites', 
+                description: 'View and use favorite commit messages',
+                action: 'show' 
+            },
+            { 
+                label: '$(history) Show History', 
+                description: 'View recent commit message history',
+                action: 'history' 
+            },
+            { 
+                label: '$(trash) Clear All Favorites', 
+                description: 'Remove all favorite commit messages',
+                action: 'clear-favorites' 
+            },
+            { 
+                label: '$(clear-all) Clear History', 
+                description: 'Remove all commit message history',
+                action: 'clear-history' 
+            }
+        ], {
+            placeHolder: 'Choose an action',
+            title: 'Manage Commit Messages'
+        });
+        
+        if (action?.action === 'show') {
+            await showFavoriteCommits(context);
+        } else if (action?.action === 'history') {
+            await showCommitHistory(context);
+        } else if (action?.action === 'clear-favorites') {
+            const confirm = await vscode.window.showWarningMessage(
+                'Are you sure you want to clear all favorite commit messages?',
+                { modal: true },
+                'Yes, Clear All'
+            );
+            if (confirm === 'Yes, Clear All') {
+                await context.globalState.update(COMMIT_FAVORITES_KEY, []);
+                vscode.window.showInformationMessage('All favorite commit messages have been cleared!');
+            }
+        } else if (action?.action === 'clear-history') {
+            const confirm = await vscode.window.showWarningMessage(
+                'Are you sure you want to clear all commit message history?',
+                { modal: true },
+                'Yes, Clear All'
+            );
+            if (confirm === 'Yes, Clear All') {
+                await context.globalState.update(COMMIT_HISTORY_KEY, []);
+                vscode.window.showInformationMessage('All commit message history has been cleared!');
+            }
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Failed to manage favorites: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Analyze staged changes to provide context for better commit messages
+ */
+async function analyzeChangeContext(workspacePath: string): Promise<ChangeContext> {
+    try {
+        const { stdout } = await execAsync('git diff --staged --name-only', { cwd: workspacePath });
+        const changedFiles = stdout.trim().split('\n').filter(file => file.length > 0);
+        
+        const context: ChangeContext = {
+            fileTypes: [],
+            frameworks: [],
+            changeTypes: [],
+            hasTests: false,
+            hasConfig: false,
+            hasDocs: false,
+            language: 'unknown',
+            scope: ''
+        };
+        
+        // Analyze file types and patterns
+        for (const file of changedFiles) {
+            const extension = file.split('.').pop()?.toLowerCase() || '';
+            const filename = file.toLowerCase();
+            const directory = file.split('/')[0]?.toLowerCase() || '';
+            
+            // File types
+            if (!context.fileTypes.includes(extension) && extension) {
+                context.fileTypes.push(extension);
+            }
+            
+            // Language detection
+            if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+                context.language = 'javascript/typescript';
+            } else if (['py'].includes(extension)) {
+                context.language = 'python';
+            } else if (['java'].includes(extension)) {
+                context.language = 'java';
+            } else if (['cs'].includes(extension)) {
+                context.language = 'csharp';
+            } else if (['go'].includes(extension)) {
+                context.language = 'go';
+            } else if (['rs'].includes(extension)) {
+                context.language = 'rust';
+            } else if (['php'].includes(extension)) {
+                context.language = 'php';
+            }
+            
+            // Framework detection
+            if (filename.includes('package.json') || filename.includes('package-lock.json')) {
+                context.frameworks.push('node.js');
+                context.hasConfig = true;
+            }
+            if (filename.includes('requirements.txt') || filename.includes('pyproject.toml')) {
+                context.frameworks.push('python');
+                context.hasConfig = true;
+            }
+            if (filename.includes('cargo.toml') || filename.includes('cargo.lock')) {
+                context.frameworks.push('rust');
+                context.hasConfig = true;
+            }
+            if (directory === 'src' || directory === 'lib') {
+                context.scope = 'core';
+            }
+            if (filename.includes('test') || filename.includes('spec') || directory.includes('test')) {
+                context.hasTests = true;
+                context.scope = context.scope || 'test';
+            }
+            if (filename.includes('config') || filename.includes('.env') || extension === 'json' || extension === 'yaml' || extension === 'yml') {
+                context.hasConfig = true;
+                context.scope = context.scope || 'config';
+            }
+            if (filename.includes('readme') || filename.includes('doc') || extension === 'md') {
+                context.hasDocs = true;
+                context.scope = context.scope || 'docs';
+            }
+            
+            // React/Vue/Angular detection
+            if (filename.includes('component') || extension === 'vue' || extension === 'tsx' || extension === 'jsx') {
+                context.frameworks.push('frontend');
+            }
+            
+            // API/Backend detection
+            if (filename.includes('api') || filename.includes('controller') || filename.includes('service') || filename.includes('model')) {
+                context.frameworks.push('backend');
+            }
+        }
+        
+        // Determine change types
+        if (context.hasTests) {
+            context.changeTypes.push('test');
+        }
+        if (context.hasConfig) {
+            context.changeTypes.push('config');
+        }
+        if (context.hasDocs) {
+            context.changeTypes.push('docs');
+        }
+        if (context.frameworks.includes('frontend')) {
+            context.changeTypes.push('ui');
+        }
+        if (context.frameworks.includes('backend')) {
+            context.changeTypes.push('api');
+        }
+        
+        return context;
+    } catch (error) {
+        // Return default context if analysis fails
+        return {
+            fileTypes: [],
+            frameworks: [],
+            changeTypes: [],
+            hasTests: false,
+            hasConfig: false,
+            hasDocs: false,
+            language: 'unknown',
+            scope: ''
+        };
+    }
+}
+
+/**
+ * Generate enhanced prompt based on change context
+ */
+function generateContextAwarePrompt(stagedChanges: string, context: ChangeContext, professionalism: string): string {
+    let prompt = '';
+    
+    // Base prompt
+    prompt = `Generate a commit message for the following Git changes. `;
+    
+    // Add context-specific instructions
+    if (context.changeTypes.length > 0) {
+        const types = context.changeTypes.join(', ');
+        prompt += `This appears to be a ${types} change. `;
+    }
+    
+    if (context.language !== 'unknown') {
+        prompt += `The changes are primarily in ${context.language}. `;
+    }
+    
+    if (context.frameworks.length > 0) {
+        prompt += `Frameworks involved: ${context.frameworks.join(', ')}. `;
+    }
+    
+    if (context.scope) {
+        prompt += `Focus area: ${context.scope}. `;
+    }
+    
+    // Add professionalism-specific instructions
+    switch (professionalism) {
+        case 'simple':
+            prompt += `Generate a simple, concise commit message (no prefixes, just action and description). `;
+            break;
+        case 'standard':
+            prompt += `Use conventional commit format (type: description). `;
+            if (context.hasTests) {
+                prompt += `Use 'test:' for test changes. `;
+            }
+            if (context.hasDocs) {
+                prompt += `Use 'docs:' for documentation changes. `;
+            }
+            if (context.hasConfig) {
+                prompt += `Use 'chore:' for configuration changes. `;
+            }
+            break;
+        case 'professional':
+            prompt += `Use conventional commit format with scope (type(scope): description). `;
+            if (context.scope) {
+                prompt += `Suggested scope: ${context.scope}. `;
+            }
+            break;
+        case 'enterprise':
+            prompt += `Use full conventional commit format with body and footer if needed. Include breaking change indicators if applicable. `;
+            break;
+    }
+    
+    prompt += `Here are the changes:\\n\\n${stagedChanges}\\n\\nGenerate 3 different commit message options.`;
+    
+    return prompt;
 }
 
 /**
@@ -530,10 +987,15 @@ async function generateCommitMessage(context: vscode.ExtensionContext): Promise<
                 return;
             }
 
+            progress.report({ message: 'Analyzing changes...' });
+
+            // Analyze the context of changes
+            const changeContext = await analyzeChangeContext(workspaceFolder.uri.fsPath);
+
             progress.report({ message: 'Calling AI API...' });
 
-            // Generate commit messages using AI
-            const commitMessages = await generateCommitMessagesWithAI(apiKey, stagedChanges);
+            // Generate commit messages using AI with context
+            const commitMessages = await generateCommitMessagesWithAI(apiKey, stagedChanges, changeContext);
             if (!commitMessages || commitMessages.length === 0) {
                 vscode.window.showErrorMessage('Failed to generate commit messages. Please try again.');
                 return;
@@ -541,14 +1003,79 @@ async function generateCommitMessage(context: vscode.ExtensionContext): Promise<
 
             progress.report({ message: 'Presenting options...' });
 
-            // Show commit message options to user
-            const selectedMessage = await vscode.window.showQuickPick(commitMessages, {
-                placeHolder: 'Select a commit message',
+            // Enhanced commit message selection with history and favorites
+            const commitMessageItems = commitMessages.map(msg => ({
+                label: msg,
+                description: '$(sparkle) AI Generated',
+                detail: 'Click to use this message',
+                message: msg
+            }));
+
+            // Add history and favorites options
+            const history = await getCommitHistory(context);
+            const favorites = await getFavoriteCommits(context);
+            
+            const quickPickItems: any[] = [...commitMessageItems];
+            
+            if (history.length > 0) {
+                quickPickItems.push({
+                    label: '$(history) Recent Messages',
+                    description: `${history.length} items`,
+                    detail: 'View your recent commit messages',
+                    action: 'history'
+                });
+            }
+            
+            if (favorites.length > 0) {
+                quickPickItems.push({
+                    label: '$(star) Favorite Messages',
+                    description: `${favorites.length} items`,
+                    detail: 'View your favorite commit messages',
+                    action: 'favorites'
+                });
+            }
+
+            const selected = await vscode.window.showQuickPick(quickPickItems, {
+                placeHolder: 'Select a commit message or browse history/favorites',
                 title: 'AI Generated Commit Messages'
             });
 
-            if (selectedMessage) {
-                await insertCommitMessage(selectedMessage);
+            if (selected) {
+                if (selected.action === 'history') {
+                    await showCommitHistory(context);
+                    return;
+                } else if (selected.action === 'favorites') {
+                    await showFavoriteCommits(context);
+                    return;
+                }
+                
+                // Handle AI generated message selection
+                const config = vscode.workspace.getConfiguration('commitAi');
+                const provider = config.get<string>('provider', 'openai');
+                const model = config.get<string>('model', 'gpt-4o-mini');
+                
+                // Add to history
+                await addToCommitHistory(context, selected.message, provider, model);
+                
+                // Ask if user wants to add to favorites or just use the message
+                const action = await vscode.window.showQuickPick([
+                    { label: '$(git-commit) Use Message', description: 'Insert this message and continue', action: 'use' },
+                    { label: '$(star) Add to Favorites & Use', description: 'Save to favorites and insert message', action: 'favorite-and-use' },
+                    { label: '$(copy) Copy to Clipboard', description: 'Copy message without inserting', action: 'copy' }
+                ], {
+                    placeHolder: 'How would you like to use this commit message?',
+                    title: 'Commit Message Actions'
+                });
+                
+                if (action?.action === 'use') {
+                    await insertCommitMessage(selected.message);
+                } else if (action?.action === 'favorite-and-use') {
+                    await addToFavorites(context, selected.message, provider, model);
+                    await insertCommitMessage(selected.message);
+                } else if (action?.action === 'copy') {
+                    await vscode.env.clipboard.writeText(selected.message);
+                    vscode.window.showInformationMessage('Commit message copied to clipboard!');
+                }
             }
         });
 
@@ -635,10 +1162,10 @@ async function getStagedChanges(workspaceRoot: string): Promise<string> {
 }
 
 /**
- * Generate commit messages using OpenAI API
- * Sends the staged changes to OpenAI and gets commit message suggestions
+ * Generate commit messages using AI with context awareness
+ * Sends the staged changes to AI and gets commit message suggestions
  */
-async function generateCommitMessagesWithAI(apiKey: string, stagedChanges: string): Promise<string[]> {
+async function generateCommitMessagesWithAI(apiKey: string, stagedChanges: string, context?: ChangeContext): Promise<string[]> {
     try {
         const config = vscode.workspace.getConfiguration('commitAi');
         const provider = config.get<string>('provider', 'openai');
@@ -647,33 +1174,38 @@ async function generateCommitMessagesWithAI(apiKey: string, stagedChanges: strin
         const professionalism = config.get<string>('professionalism', 'standard');
         const apiEndpoint = config.get<string>('apiEndpoint', '');
 
-        // Create professionalism-specific prompts
-        const professionalismPrompts = {
-            simple: {
-                description: 'Create simple, clear commit messages without prefixes',
-                format: 'Examples: "fix login bug", "add user dashboard", "update documentation"',
-                rules: '• Use imperative mood\n• Keep under 50 characters\n• No type prefixes or special formatting'
-            },
-            standard: {
-                description: 'Follow standard Conventional Commits format',
-                format: 'Examples: "fix: resolve login issue", "feat: add user dashboard", "docs: update API guide"',
-                rules: '• Use conventional commit types (feat, fix, docs, style, refactor, test, chore)\n• Format: type: description\n• Keep under 50 characters for subject line'
-            },
-            professional: {
-                description: 'Use professional Conventional Commits with scopes',
-                format: 'Examples: "fix(auth): resolve login validation issue", "feat(ui): add responsive user dashboard", "docs(api): update authentication endpoints"',
-                rules: '• Include relevant scope in parentheses\n• Format: type(scope): description\n• Be specific about the component/area affected\n• Keep under 72 characters total'
-            },
-            enterprise: {
-                description: 'Full enterprise-grade commit messages with detailed descriptions',
-                format: 'Examples: "feat(auth)!: implement OAuth2 authentication\n\nAdd comprehensive OAuth2 support with PKCE\n\nBREAKING CHANGE: removes basic auth support"',
-                rules: '• Include scope and breaking change indicators (!)\n• Add detailed body explaining the change\n• Include BREAKING CHANGE footer if applicable\n• Reference issues/tickets when relevant\n• Multiple lines allowed for complex changes'
-            }
-        };
+        // Use context-aware prompt if context is provided
+        let prompt: string;
+        if (context) {
+            prompt = generateContextAwarePrompt(stagedChanges, context, professionalism);
+        } else {
+            // Fallback to original prompt format
+            const professionalismPrompts = {
+                simple: {
+                    description: 'Create simple, clear commit messages without prefixes',
+                    format: 'Examples: "fix login bug", "add user dashboard", "update documentation"',
+                    rules: '• Use imperative mood\n• Keep under 50 characters\n• No type prefixes or special formatting'
+                },
+                standard: {
+                    description: 'Follow standard Conventional Commits format',
+                    format: 'Examples: "fix: resolve login issue", "feat: add user dashboard", "docs: update API guide"',
+                    rules: '• Use conventional commit types (feat, fix, docs, style, refactor, test, chore)\n• Format: type: description\n• Keep under 50 characters for subject line'
+                },
+                professional: {
+                    description: 'Use professional Conventional Commits with scopes',
+                    format: 'Examples: "fix(auth): resolve login validation issue", "feat(ui): add responsive user dashboard", "docs(api): update authentication endpoints"',
+                    rules: '• Include relevant scope in parentheses\n• Format: type(scope): description\n• Be specific about the component/area affected\n• Keep under 72 characters total'
+                },
+                enterprise: {
+                    description: 'Full enterprise-grade commit messages with detailed descriptions',
+                    format: 'Examples: "feat(auth)!: implement OAuth2 authentication\n\nAdd comprehensive OAuth2 support with PKCE\n\nBREAKING CHANGE: removes basic auth support"',
+                    rules: '• Include scope and breaking change indicators (!)\n• Add detailed body explaining the change\n• Include BREAKING CHANGE footer if applicable\n• Reference issues/tickets when relevant\n• Multiple lines allowed for complex changes'
+                }
+            };
 
-        const currentStyle = professionalismPrompts[professionalism as keyof typeof professionalismPrompts] || professionalismPrompts.standard;
+            const currentStyle = professionalismPrompts[professionalism as keyof typeof professionalismPrompts] || professionalismPrompts.standard;
 
-        const prompt = `You are a Git commit message generator. Based on the following staged changes, generate exactly 3 different commit message suggestions.
+            prompt = `You are a Git commit message generator. Based on the following staged changes, generate exactly 3 different commit message suggestions.
 
 Professionalism Level: ${professionalism.toUpperCase()}
 ${currentStyle.description}
@@ -697,6 +1229,7 @@ ${stagedChanges}
 \`\`\`
 
 Generate 3 commit messages:`;
+        }
 
         let response: string | null = null;
 

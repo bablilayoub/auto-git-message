@@ -20,14 +20,17 @@ Or install directly in VS Code:
 
 - **Multiple AI Providers**: Support for OpenAI, Anthropic Claude, Google Gemini, Ollama (local), and Groq
 - **AI-Generated Commit Messages**: Generate multiple commit message suggestions based on your staged Git changes
+- **Context-Aware Generation**: Analyzes file types, frameworks, and change patterns for smarter suggestions
+- **Commit History & Favorites**: Save and reuse your best commit messages with full history tracking
 - **Secure API Key Storage**: API keys are stored securely using VS Code's Secret Storage
 - **Free Options Available**: Use Google Gemini (free tier), Ollama (completely free/local), or Groq (free tier)
 - **Professionalism Levels**: Choose from 4 levels of commit message complexity (Simple to Enterprise)
 - **Activity Bar Integration**: Dedicated panel in VS Code's Activity Bar for easy access
 - **Source Control Integration**: Insert generated messages directly into the Source Control input box
-- **Multiple Access Methods**: Activity Bar, Source Control buttons, and Command Palette
+- **Multiple Access Methods**: Activity Bar, Source Control buttons, Command Palette, and keyboard shortcuts
 - **Configurable AI Settings**: Customize AI provider, model, temperature, and professionalism level
 - **Smart UI**: Conditional interface that adapts based on setup status
+- **Keyboard Shortcuts**: Quick access with customizable key bindings
 
 ## Requirements
 
@@ -94,6 +97,31 @@ The extension supports multiple AI providers to give you flexibility and cost op
    - **Command Palette**: Run command `AI: Generate Commit Message`
 4. Select one of the 3 generated commit message suggestions
 5. The selected message will be inserted into the Source Control input box
+
+### Advanced Features
+
+#### 🧠 Context-Aware Generation
+The extension automatically analyzes your staged changes to provide better commit messages:
+- **Framework Detection**: Recognizes React, Vue, Node.js, Python, Rust, and more
+- **File Type Analysis**: Identifies tests, documentation, configuration files
+- **Change Pattern Recognition**: Detects API changes, UI updates, bug fixes
+- **Smart Suggestions**: Provides appropriate conventional commit types based on context
+
+#### 📚 History & Favorites
+- **Commit History**: Automatic tracking of all generated commit messages
+- **Favorites System**: Star your best commit messages for quick reuse
+- **Quick Access**: Browse history and favorites directly from the Activity Bar
+- **Smart Actions**: Copy, reuse, or manage your saved messages
+
+#### ⌨️ Keyboard Shortcuts
+- `Ctrl+Shift+G` (Windows/Linux) / `Cmd+Shift+G` (macOS): Generate commit message
+- `Ctrl+Shift+H` (Windows/Linux) / `Cmd+Shift+H` (macOS): Show commit history  
+- `Ctrl+Shift+F` (Windows/Linux) / `Cmd+Shift+F` (macOS): Show favorite commits
+
+#### 🔧 Enhanced Workflow
+- **Context Actions**: Add to favorites, copy to clipboard, or use immediately
+- **Provider-Specific Models**: Different model options for each AI provider
+- **Performance Optimized**: Bundled extension loads 15x faster than before
 
 ## Activity Bar Panel
 
