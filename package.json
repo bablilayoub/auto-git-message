@@ -1,7 +1,7 @@
 {
   "name": "auto-git-message",
   "displayName": "Auto Git Message",
-  "description": "AI-powered Git commit message generator using OpenAI API",
+  "description": "AI-powered Git commit message generator supporting multiple AI providers (OpenAI, Anthropic, Google Gemini, Ollama, Groq)",
   "version": "0.0.1",
   "license": "MIT",
   "publisher": "bablilayoub",
@@ -16,11 +16,17 @@
     "git",
     "commit",
     "ai",
-    "openai", 
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "ollama",
     "artificial intelligence",
     "conventional commits",
     "automation",
-    "productivity"
+    "productivity",
+    "free ai",
+    "local ai"
   ],
   "repository": {
     "type": "git",
@@ -36,7 +42,7 @@
     "commands": [
       {
         "command": "commitAi.setApiKey",
-        "title": "AI: Set OpenAI API Key",
+        "title": "AI: Set API Key",
         "category": "Auto Git Message"
       },
       {
@@ -47,7 +53,7 @@
       },
       {
         "command": "commitAi.selectModel",
-        "title": "Select OpenAI Model",
+        "title": "AI: Select Model",
         "category": "Auto Git Message",
         "icon": "$(settings-gear)"
       },
@@ -62,6 +68,12 @@
         "title": "Select Professionalism Level",
         "category": "Auto Git Message",
         "icon": "$(mortar-board)"
+      },
+      {
+        "command": "commitAi.selectProvider",
+        "title": "Select AI Provider",
+        "category": "Auto Git Message",
+        "icon": "$(cloud)"
       }
     ],
     "viewsContainers": {
@@ -85,35 +97,67 @@
     "viewsWelcome": [
       {
         "view": "commitAi.aiCommitView",
-        "contents": "$(key) API Key Required\n\nSet up your OpenAI API key to start generating AI-powered commit messages.\n\n[$(key) Set OpenAI API Key](command:commitAi.setApiKey)\n\n---\n\n$(info) Requirements:\n• Valid OpenAI API key\n• Git repository with staged changes",
+        "contents": "$(key) API Key Required\n\nChoose your AI provider and set up authentication to start generating commit messages.\n\n[$(cloud) Select AI Provider](command:commitAi.selectProvider)\n\n[$(key) Set API Key](command:commitAi.setApiKey)\n\n---\n\n$(info) Free Options Available:\n• Ollama (Local AI)\n• Google Gemini (Free tier)\n• Groq (Free tier)",
         "when": "workbenchState != empty && !commitAi.apiKeyConfigured"
       },
       {
         "view": "commitAi.aiCommitView",
-        "contents": "$(rocket) AI Commit Generator\n\nGenerate intelligent commit messages from your staged Git changes.\n\n[$(sparkle) Generate Commit Message](command:commitAi.generateCommitMessage)\n\n---\n\n$(gear) Configuration\n\n[$(settings-gear) Select AI Model](command:commitAi.selectModel)\n\n[$(mortar-board) Professionalism Level](command:commitAi.selectProfessionalism)\n\n[$(key) Manage API Key](command:commitAi.clearApiKey)\n\n---\n\n$(checklist) Before generating:\n• Stage your changes (git add)\n• Ensure you're in a Git repository",
+        "contents": "$(rocket) AI Commit Generator\n\nGenerate intelligent commit messages from your staged Git changes.\n\n[$(sparkle) Generate Commit Message](command:commitAi.generateCommitMessage)\n\n---\n\n$(gear) Configuration\n\n[$(cloud) AI Provider](command:commitAi.selectProvider)\n\n[$(settings-gear) Select Model](command:commitAi.selectModel)\n\n[$(mortar-board) Professionalism Level](command:commitAi.selectProfessionalism)\n\n[$(key) Manage API Key](command:commitAi.clearApiKey)\n\n---\n\n$(checklist) Before generating:\n• Stage your changes (git add)\n• Ensure you're in a Git repository",
         "when": "workbenchState != empty && commitAi.apiKeyConfigured"
       }
     ],
     "configuration": {
       "title": "Auto Git Message",
       "properties": {
+        "commitAi.provider": {
+          "type": "string",
+          "default": "openai",
+          "description": "AI provider to use for generating commit messages",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "groq"
+          ],
+          "enumDescriptions": [
+            "OpenAI (GPT models) - Paid API required",
+            "Anthropic Claude - Paid API required",
+            "Google Gemini - Free tier available",
+            "Ollama - Free local AI models",
+            "Groq - Fast inference with free tier"
+          ]
+        },
         "commitAi.model": {
           "type": "string",
           "default": "gpt-4o-mini",
-          "description": "OpenAI model to use for generating commit messages",
+          "description": "AI model to use (varies by provider)",
           "enum": [
             "gpt-4o-mini",
             "gpt-4o",
             "gpt-4-turbo",
-            "gpt-3.5-turbo"
+            "gpt-3.5-turbo",
+            "claude-3-haiku-20240307",
+            "claude-3-sonnet-20240229",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "llama3.1:8b",
+            "llama3.1:70b",
+            "codellama:7b",
+            "mixtral:8x7b"
           ]
+        },
+        "commitAi.apiEndpoint": {
+          "type": "string",
+          "default": "",
+          "description": "Custom API endpoint (for Ollama: http://localhost:11434, for Groq: https://api.groq.com/openai)"
         },
         "commitAi.temperature": {
           "type": "number",
           "default": 0.7,
           "minimum": 0,
           "maximum": 2,
-          "description": "Temperature for OpenAI API (0 = deterministic, 2 = very creative)"
+          "description": "AI temperature setting (0 = deterministic, 2 = very creative)"
         },
         "commitAi.professionalism": {
           "type": "string",
@@ -127,7 +171,7 @@
           ],
           "enumDescriptions": [
             "Basic: fix bug, add feature, update docs",
-            "Standard: fix: resolve login issue, feat: add user dashboard", 
+            "Standard: fix: resolve login issue, feat: add user dashboard",
             "Professional: fix(auth): resolve login validation issue, feat(ui): add responsive user dashboard",
             "Enterprise: fix(auth)!: resolve critical login validation issue\n\nFixes security vulnerability in user authentication\n\nBREAKING CHANGE: requires password reset for all users"
           ]
@@ -171,6 +215,8 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@google/generative-ai": "^0.24.1",
     "openai": "^6.0.0"
   }
 }

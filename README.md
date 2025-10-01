@@ -1,6 +1,6 @@
 # Auto Git Message
 
-AI-powered Git commit message generator using OpenAI API for VS Code.
+AI-powered Git commit message generator supporting multiple AI providers for VS Code.
 
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/bablilayoub.auto-git-message)](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)
 [![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/bablilayoub.auto-git-message)](https://marketplace.visualstudio.com/items?itemName=bablilayoub.auto-git-message)
@@ -18,19 +18,21 @@ Or install directly in VS Code:
 
 ## Features
 
+- **Multiple AI Providers**: Support for OpenAI, Anthropic Claude, Google Gemini, Ollama (local), and Groq
 - **AI-Generated Commit Messages**: Generate multiple commit message suggestions based on your staged Git changes
-- **Secure API Key Storage**: OpenAI API key is stored securely using VS Code's Secret Storage
+- **Secure API Key Storage**: API keys are stored securely using VS Code's Secret Storage
+- **Free Options Available**: Use Google Gemini (free tier), Ollama (completely free/local), or Groq (free tier)
 - **Professionalism Levels**: Choose from 4 levels of commit message complexity (Simple to Enterprise)
 - **Activity Bar Integration**: Dedicated panel in VS Code's Activity Bar for easy access
 - **Source Control Integration**: Insert generated messages directly into the Source Control input box
 - **Multiple Access Methods**: Activity Bar, Source Control buttons, and Command Palette
-- **Configurable AI Settings**: Customize OpenAI model, temperature, and professionalism level
+- **Configurable AI Settings**: Customize AI provider, model, temperature, and professionalism level
 - **Smart UI**: Conditional interface that adapts based on setup status
 
 ## Requirements
 
 - VS Code 1.104.0 or higher
-- OpenAI API key (get one at [OpenAI Platform](https://platform.openai.com/api-keys))
+- API key for your chosen AI provider (free options available)
 - Git repository with staged changes
 
 ## Installation
@@ -53,16 +55,34 @@ Or install directly in VS Code:
 code --install-extension bablilayoub.auto-git-message
 ```
 
+## AI Providers
+
+The extension supports multiple AI providers to give you flexibility and cost options:
+
+### 🆓 Free Options
+- **Google Gemini**: Free tier with generous limits ([Get API key](https://aistudio.google.com/app/apikey))
+- **Ollama**: Completely free, runs locally ([Download Ollama](https://ollama.com/))
+- **Groq**: Free tier with fast inference ([Get API key](https://console.groq.com/keys))
+
+### 💰 Paid Options
+- **OpenAI**: High-quality models like GPT-4 ([Get API key](https://platform.openai.com/api-keys))
+- **Anthropic Claude**: Advanced reasoning capabilities ([Get API key](https://console.anthropic.com/))
+
 ### Setup
-After installation, set your OpenAI API key using the command `AI: Set OpenAI API Key`
+1. **Choose your AI provider**: Use the command `AI: Select AI Provider` to choose between OpenAI, Anthropic, Google Gemini, Ollama, or Groq
+2. **Set your API key**: Use the command `AI: Set API Key` and enter your API key for the selected provider
+   - For Ollama: No API key needed, just make sure Ollama is running locally
+3. **Configure settings**: Adjust model, temperature, and professionalism level in VS Code settings
 
 ## Usage
 
-### Setting up API Key
+### Setting up AI Provider
 
 1. Open Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux)
-2. Run command: `AI: Set OpenAI API Key`
-3. Enter your OpenAI API key when prompted
+2. Run command: `AI: Select AI Provider`
+3. Choose your preferred AI provider (OpenAI, Anthropic, Google Gemini, Ollama, or Groq)
+4. Run command: `AI: Set API Key` (skip for Ollama - no API key needed)
+5. Enter your API key when prompted
 
 ### Generating Commit Messages
 
@@ -79,14 +99,14 @@ After installation, set your OpenAI API key using the command `AI: Set OpenAI AP
 
 The extension adds a dedicated panel to VS Code's Activity Bar (the leftmost vertical bar) with a git-commit icon. The panel provides:
 
-**Setup Mode** (when API key is not configured):
+**Setup Mode** (when AI provider is not configured):
 - Instructions for getting started
-- Direct link to set up your OpenAI API key
+- Direct link to select AI provider and set up API key
 - Requirements checklist
 
-**Ready Mode** (when API key is configured):
+**Ready Mode** (when AI provider is configured):
 - Quick access to generate commit messages
-- Configuration options (Model selection, Professionalism level)
+- Configuration options (Provider selection, Model selection, Professionalism level)
 - API key management
 - Usage requirements
 
@@ -98,22 +118,37 @@ Add these settings to your VS Code `settings.json`:
 
 ```json
 {
+  "commitAi.provider": "openai",
   "commitAi.model": "gpt-4o-mini",
   "commitAi.temperature": 0.7,
   "commitAi.professionalism": "standard",
-  "commitAi.showActivityBar": true
+  "commitAi.showActivityBar": true,
+  "commitAi.apiEndpoint": ""
 }
 ```
 
 ### Available Settings
 
-- **`commitAi.model`** (string, default: `"gpt-4o-mini"`)
-  - OpenAI model to use for generating commit messages
-  - Options: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- **`commitAi.provider`** (string, default: `"openai"`)
+  - AI provider to use for generating commit messages
+  - Options: `openai`, `anthropic`, `google`, `ollama`, `groq`
+
+- **`commitAi.model`** (string, varies by provider)
+  - Model to use for generating commit messages
+  - OpenAI: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`
+  - Anthropic: `claude-3-5-sonnet-20241022`, `claude-3-haiku-20240307`
+  - Google: `gemini-1.5-flash`, `gemini-1.5-pro`
+  - Ollama: `llama3.2`, `codellama`, `mistral` (depends on locally installed models)
+  - Groq: `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
 
 - **`commitAi.temperature`** (number, default: `0.7`)
   - Controls randomness in AI responses (0 = deterministic, 2 = very creative)
   - Range: 0.0 to 2.0
+
+- **`commitAi.apiEndpoint`** (string, optional)
+  - Custom API endpoint for Ollama or Groq
+  - Ollama default: `http://localhost:11434`
+  - Groq default: `https://api.groq.com/openai`
 
 - **`commitAi.professionalism`** (string, default: `"standard"`)
   - Professionalism level for commit messages
