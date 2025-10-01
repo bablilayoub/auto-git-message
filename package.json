@@ -2,9 +2,10 @@
   "name": "auto-git-message",
   "displayName": "Auto Git Message",
   "description": "AI-powered Git commit message generator supporting multiple AI providers (OpenAI, Anthropic, Google Gemini, Ollama, Groq)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "publisher": "bablilayoub",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.104.0"
   },
@@ -253,6 +254,7 @@
     "@types/webpack": "^5.28.5",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
+    "@vscode/vsce": "^3.6.2",
     "eslint": "^9.34.0",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.2",
