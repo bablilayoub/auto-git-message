@@ -1,0 +1,157 @@
+{
+  "name": "auto-git-message",
+  "displayName": "Auto Git Message",
+  "description": "AI-powered Git commit message generator using OpenAI API",
+  "version": "0.0.1",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "commitAi.setApiKey",
+        "title": "AI: Set OpenAI API Key",
+        "category": "Auto Git Message"
+      },
+      {
+        "command": "commitAi.generateCommitMessage",
+        "title": "AI: Generate Commit Message",
+        "category": "Auto Git Message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "commitAi.selectModel",
+        "title": "Select OpenAI Model",
+        "category": "Auto Git Message",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "commitAi.clearApiKey",
+        "title": "Manage API Key",
+        "category": "Auto Git Message",
+        "icon": "$(key)"
+      },
+      {
+        "command": "commitAi.selectProfessionalism",
+        "title": "Select Professionalism Level",
+        "category": "Auto Git Message",
+        "icon": "$(mortar-board)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "auto-git-message",
+          "title": "Auto Git Message",
+          "icon": "$(git-commit)"
+        }
+      ]
+    },
+    "views": {
+      "auto-git-message": [
+        {
+          "id": "commitAi.aiCommitView",
+          "name": "AI Commit Message",
+          "when": "workbenchState != empty && config.commitAi.showActivityBar"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "commitAi.aiCommitView",
+        "contents": "$(key) API Key Required\n\nSet up your OpenAI API key to start generating AI-powered commit messages.\n\n[$(key) Set OpenAI API Key](command:commitAi.setApiKey)\n\n---\n\n$(info) Requirements:\n• Valid OpenAI API key\n• Git repository with staged changes",
+        "when": "workbenchState != empty && !commitAi.apiKeyConfigured"
+      },
+      {
+        "view": "commitAi.aiCommitView",
+        "contents": "$(rocket) AI Commit Generator\n\nGenerate intelligent commit messages from your staged Git changes.\n\n[$(sparkle) Generate Commit Message](command:commitAi.generateCommitMessage)\n\n---\n\n$(gear) Configuration\n\n[$(settings-gear) Select AI Model](command:commitAi.selectModel)\n\n[$(mortar-board) Professionalism Level](command:commitAi.selectProfessionalism)\n\n[$(key) Manage API Key](command:commitAi.clearApiKey)\n\n---\n\n$(checklist) Before generating:\n• Stage your changes (git add)\n• Ensure you're in a Git repository",
+        "when": "workbenchState != empty && commitAi.apiKeyConfigured"
+      }
+    ],
+    "configuration": {
+      "title": "Auto Git Message",
+      "properties": {
+        "commitAi.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model to use for generating commit messages",
+          "enum": [
+            "gpt-4o-mini",
+            "gpt-4o",
+            "gpt-4-turbo",
+            "gpt-3.5-turbo"
+          ]
+        },
+        "commitAi.temperature": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for OpenAI API (0 = deterministic, 2 = very creative)"
+        },
+        "commitAi.professionalism": {
+          "type": "string",
+          "default": "standard",
+          "description": "Professionalism level for commit messages",
+          "enum": [
+            "simple",
+            "standard",
+            "professional",
+            "enterprise"
+          ],
+          "enumDescriptions": [
+            "Basic: fix bug, add feature, update docs",
+            "Standard: fix: resolve login issue, feat: add user dashboard", 
+            "Professional: fix(auth): resolve login validation issue, feat(ui): add responsive user dashboard",
+            "Enterprise: fix(auth)!: resolve critical login validation issue\n\nFixes security vulnerability in user authentication\n\nBREAKING CHANGE: requires password reset for all users"
+          ]
+        },
+        "commitAi.showActivityBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Auto Git Message icon in Activity Bar"
+        }
+      }
+    },
+    "menus": {
+      "scm/title": [
+        {
+          "command": "commitAi.generateCommitMessage",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "commitAi.generateCommitMessage",
+          "group": "inline",
+          "when": "scmProvider == git"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "^1.104.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "openai": "^6.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "commitAi.model": "gpt-4o-mini",
+  "commitAi.temperature": 0.7,
+  "commitAi.professionalism": "standard",
+  "commitAi.showActivityBar": true
+}
