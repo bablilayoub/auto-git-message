@@ -2,7 +2,7 @@
   "name": "auto-git-message",
   "displayName": "Auto Git Message",
   "description": "AI-powered Git commit message generator supporting multiple AI providers (OpenAI, Anthropic, Google Gemini, Ollama, Groq)",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "publisher": "bablilayoub",
   "engines": {
