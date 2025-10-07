@@ -1080,7 +1080,23 @@ async function generateCommitMessage(context: vscode.ExtensionContext): Promise<
         });
 
     } catch (error) {
-        vscode.window.showErrorMessage(`Error generating commit message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Check for token limit errors and provide helpful message
+        if (errorMessage.includes('maximum context length') || 
+            errorMessage.includes('tokens') || 
+            errorMessage.includes('context_length_exceeded') ||
+            errorMessage.includes('413') || // Payload too large
+            errorMessage.includes('message too long')) {
+            
+            vscode.window.showErrorMessage(
+                'Error: Your staged changes are too large for the AI model. ' +
+                'Try staging fewer files at once, or the extension will automatically summarize large changes in future attempts.',
+                'Retry with Fewer Files'
+            );
+        } else {
+            vscode.window.showErrorMessage(`Error generating commit message: ${errorMessage}`);
+        }
     }
 }
 
@@ -1143,6 +1159,16 @@ async function selectProfessionalismLevel(): Promise<void> {
 }
 async function getStagedChanges(workspaceRoot: string): Promise<string> {
     try {
+        // First get the file list and stats
+        const { stdout: fileList } = await execAsync('git diff --staged --name-status', { 
+            cwd: workspaceRoot
+        });
+
+        if (!fileList.trim()) {
+            return '';
+        }
+
+        // Get the full diff
         const { stdout, stderr } = await execAsync('git diff --staged', { 
             cwd: workspaceRoot,
             maxBuffer: 1024 * 1024 // 1MB buffer for large diffs
@@ -1152,12 +1178,119 @@ async function getStagedChanges(workspaceRoot: string): Promise<string> {
             console.warn('Git diff stderr:', stderr);
         }
 
+        // Check if the diff is too large (approximate token limit: ~12000 tokens = ~48000 characters)
+        const MAX_DIFF_SIZE = 40000; // Conservative limit to leave room for prompt
+        
+        if (stdout.length > MAX_DIFF_SIZE) {
+            return await getSummarizedChanges(workspaceRoot, fileList, stdout);
+        }
+
         return stdout;
     } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 128) {
             throw new Error('Not a Git repository or Git is not installed');
         }
         throw new Error(`Failed to get staged changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Generate a summarized version of large staged changes
+ */
+async function getSummarizedChanges(workspaceRoot: string, fileList: string, fullDiff: string): Promise<string> {
+    try {
+        // Parse file changes
+        const files = fileList.trim().split('\n').map(line => {
+            const parts = line.split('\t');
+            const status = parts[0];
+            const filename = parts[1];
+            return { status, filename };
+        });
+
+        // Get stats for each file
+        const { stdout: stats } = await execAsync('git diff --staged --stat', { 
+            cwd: workspaceRoot
+        });
+
+        // Create a summary with limited diff content
+        let summary = `Summary of changes (${files.length} files modified):\n\n`;
+        
+        // Add file status summary
+        const statusCounts = files.reduce((acc, file) => {
+            acc[file.status] = (acc[file.status] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const statusMap: Record<string, string> = {
+            'A': 'Added',
+            'M': 'Modified', 
+            'D': 'Deleted',
+            'R': 'Renamed',
+            'C': 'Copied'
+        };
+
+        Object.entries(statusCounts).forEach(([status, count]) => {
+            summary += `${statusMap[status] || status}: ${count} file(s)\n`;
+        });
+
+        summary += '\nFile changes:\n';
+        files.forEach(file => {
+            summary += `${file.status} ${file.filename}\n`;
+        });
+
+        summary += '\nDiff statistics:\n' + stats;
+
+        // Add limited diff content for the most important files (first few files, up to size limit)
+        const SAMPLE_DIFF_SIZE = 15000; // Reserve space for sample diffs
+        let remainingSize = SAMPLE_DIFF_SIZE;
+        summary += '\n\nSample changes (truncated due to size):\n';
+
+        // Split full diff by files and include samples
+        const diffLines = fullDiff.split('\n');
+        let currentFile = '';
+        let currentDiffLines: string[] = [];
+        
+        for (const line of diffLines) {
+            if (line.startsWith('diff --git')) {
+                // Process previous file if we have one
+                if (currentFile && currentDiffLines.length > 0) {
+                    const fileDiff = currentDiffLines.join('\n');
+                    if (fileDiff.length < remainingSize) {
+                        summary += '\n' + fileDiff + '\n';
+                        remainingSize -= fileDiff.length;
+                    } else {
+                        // Add truncated version
+                        summary += '\n' + fileDiff.substring(0, remainingSize) + '\n... (truncated)\n';
+                        break;
+                    }
+                }
+                
+                // Start new file
+                currentFile = line.match(/diff --git a\/(.*?) b\//)?.[1] || '';
+                currentDiffLines = [line];
+            } else {
+                currentDiffLines.push(line);
+            }
+            
+            if (remainingSize <= 0) {
+                break;
+            }
+        }
+
+        // Process last file
+        if (currentFile && currentDiffLines.length > 0 && remainingSize > 0) {
+            const fileDiff = currentDiffLines.join('\n');
+            if (fileDiff.length < remainingSize) {
+                summary += '\n' + fileDiff + '\n';
+            } else {
+                summary += '\n' + fileDiff.substring(0, remainingSize) + '\n... (truncated)\n';
+            }
+        }
+
+        return summary;
+    } catch (error) {
+        // Fallback to basic file list if summarization fails
+        return `Large changeset detected. Files modified:\n${fileList}\n\nNote: Diff content truncated due to size. Please review the specific changes and provide a descriptive commit message.`;
     }
 }
 
@@ -1330,30 +1463,44 @@ async function insertCommitMessage(message: string): Promise<void> {
  * Call OpenAI API
  */
 async function callOpenAI(apiKey: string, model: string, prompt: string, temperature: number): Promise<string | null> {
-    const openai = new OpenAI({ apiKey });
-    const response = await openai.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature,
-        max_tokens: 200
-    });
-    return response.choices[0]?.message?.content?.trim() || null;
+    try {
+        const openai = new OpenAI({ apiKey });
+        const response = await openai.chat.completions.create({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature,
+            max_tokens: 200
+        });
+        return response.choices[0]?.message?.content?.trim() || null;
+    } catch (error: any) {
+        if (error?.status === 400 && error?.message?.includes('maximum context length')) {
+            throw new Error(`AI API error: ${error.message}`);
+        }
+        throw error;
+    }
 }
 
 /**
  * Call Anthropic Claude API
  */
 async function callAnthropic(apiKey: string, model: string, prompt: string, temperature: number): Promise<string | null> {
-    const anthropic = new Anthropic({ apiKey });
-    const response = await anthropic.messages.create({
-        model,
-        max_tokens: 200,
-        temperature,
-        messages: [{ role: 'user', content: prompt }]
-    });
-    
-    const content = response.content[0];
-    return content.type === 'text' ? content.text : null;
+    try {
+        const anthropic = new Anthropic({ apiKey });
+        const response = await anthropic.messages.create({
+            model,
+            max_tokens: 200,
+            temperature,
+            messages: [{ role: 'user', content: prompt }]
+        });
+        
+        const content = response.content[0];
+        return content.type === 'text' ? content.text : null;
+    } catch (error: any) {
+        if (error?.status === 400 && (error?.message?.includes('context') || error?.message?.includes('tokens'))) {
+            throw new Error(`AI API error: ${error.message}`);
+        }
+        throw error;
+    }
 }
 
 /**
